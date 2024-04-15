@@ -222,6 +222,7 @@ class JupyterRuntime:
                 did_stuff = did_stuff or did_stuff_now
 
                 if output.status == OutputStatus.DONE:
+                    self.nvim.exec_lua('require "notify"("Finished", "info")')
                     break
             except EmptyQueueException:
                 break

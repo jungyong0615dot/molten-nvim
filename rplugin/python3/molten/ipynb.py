@@ -161,7 +161,8 @@ def export_outputs(nvim: Nvim, kernel: MoltenKernel, filepath: str, overwrite: b
 
     nb_cells = list(filter(lambda x: x["cell_type"] == "code", nb["cells"]))
     nb_index = 0
-    lang = kernel.runtime.kernel_manager.kernel_spec.language  # type: ignore
+    # lang = kernel.runtime.kernel_manager.kernel_spec.language  # type: ignore
+    lang = "python"
     for mcell in molten_cells:
         matched = False
         while nb_index < len(nb_cells):

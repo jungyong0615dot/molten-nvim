@@ -117,6 +117,7 @@ class MoltenKernel:
 
         self.update_interface()
 
+
         self._check_if_done_running()
 
     def reevaluate_all(self) -> None:
@@ -208,6 +209,7 @@ class MoltenKernel:
         if is_idle and not self.queued_outputs.empty():
             key = self.queued_outputs.get_nowait()
             self.current_output = key
+
 
     def tick(self) -> None:
         self._check_if_done_running()

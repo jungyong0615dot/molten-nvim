@@ -18,6 +18,7 @@ from molten.runtime import get_available_kernels
 from molten.utils import MoltenException, notify_error, notify_info, notify_warn, nvimui
 from pynvim import Nvim
 
+import uuid
 
 @pynvim.plugin
 class Molten:
@@ -546,6 +547,7 @@ class Molten:
             (end_line - 1, end_col - 1),
         )
 
+        self.nvim.exec_lua('require "notify"("Started", "warn")')
         self._do_evaluate(kernel.strip(), span)
 
     @pynvim.command("MoltenEvaluateOperator", sync=True)  # type: ignore
