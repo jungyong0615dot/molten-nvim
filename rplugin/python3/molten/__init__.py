@@ -6,7 +6,7 @@ from itertools import chain
 import pynvim
 from pynvim.api import Buffer
 from molten.code_cell import CodeCell
-from molten.images import Canvas, get_canvas_given_provider
+from molten.images import Canvas, get_canvas_given_provider, WeztermCanvas
 from molten.info_window import create_info_window
 from molten.ipynb import export_outputs, get_default_import_export_file, import_outputs
 from molten.save_load import MoltenIOError, get_default_save_file, load, save
@@ -63,7 +63,7 @@ class Molten:
 
         self.options = MoltenOptions(self.nvim)
 
-        self.canvas = get_canvas_given_provider(self.options.image_provider, self.nvim)
+        self.canvas = get_canvas_given_provider(self.nvim, self.options)
         self.canvas.init()
 
         self.highlight_namespace = self.nvim.funcs.nvim_create_namespace("molten-highlights")
@@ -168,7 +168,7 @@ class Molten:
         for m in molten_kernels:
             m.on_cursor_moved(scrolled)
 
-    def _initialize_buffer(self, kernel_name: str, shared=False) -> MoltenKernel:
+    def _initialize_buffer(self, kernel_name: str, shared=False) -> MoltenKernel | None:
         assert self.canvas is not None
         if shared:  # use an existing molten kernel, for a new neovim buffer
             molten = self.molten_kernels.get(kernel_name)
@@ -186,21 +186,28 @@ class Molten:
         if self.molten_kernels.get(kernel_name) is not None:
             kernel_id = f"{kernel_name}_{len(self.molten_kernels)}"
 
-        molten = MoltenKernel(
-            self.nvim,
-            self.canvas,
-            self.highlight_namespace,
-            self.extmark_namespace,
-            self.nvim.current.buffer,
-            self.options,
-            kernel_name,
-            kernel_id,
-        )
+        try:
+            molten = MoltenKernel(
+                self.nvim,
+                self.canvas,
+                self.highlight_namespace,
+                self.extmark_namespace,
+                self.nvim.current.buffer,
+                self.options,
+                kernel_name,
+                kernel_id,
+            )
 
-        self.add_kernel(self.nvim.current.buffer, kernel_id, molten)
-        molten._doautocmd("MoltenInitPost")
+            self.add_kernel(self.nvim.current.buffer, kernel_id, molten)
+            molten._doautocmd("MoltenInitPost")
+            if isinstance(self.canvas, WeztermCanvas):
+                self.canvas.wezterm_split()
 
-        return molten
+            return molten
+        except Exception as e:
+            notify_error(
+                self.nvim, f"Could not initialize kernel named '{kernel_name}'.\nCaused By: {e}"
+            )
 
     def add_kernel(self, buffer: Buffer, kernel_id: str, kernel: MoltenKernel):
         """Add a new MoltenKernel to be tracked by Molten.
@@ -819,10 +826,10 @@ class Molten:
             kernel_name = data["kernel"]
 
             molten = self._initialize_buffer(kernel_name, shared=shared)
+            if molten:
+                load(self.nvim, molten, self.nvim.current.buffer, data)
 
-            load(self.nvim, molten, self.nvim.current.buffer, data)
-
-            self._update_interface()
+                self._update_interface()
         except MoltenIOError as err:
             if molten is not None:
                 self._deinit_buffer([molten])
@@ -867,7 +874,7 @@ class Molten:
             m.tick()
 
     @pynvim.function("MoltenTickInput", sync=False)  # type: ignore
-    @nvimui  #type: ignore
+    @nvimui  # type: ignore
     def function_molten_tick_input(self, _: Any) -> None:
         self._initialize_if_necessary()
 
@@ -879,7 +886,7 @@ class Molten:
             m.tick_input()
 
     @pynvim.function("MoltenSendStdin", sync=False)  # type: ignore
-    @nvimui  #type: ignore
+    @nvimui  # type: ignore
     def function_molten_send_stdin(self, args: Tuple[str, str]) -> None:
         molten_kernels = self._get_current_buf_kernels(False)
         if molten_kernels is None:
