@@ -33,8 +33,21 @@ def create_info_window(nvim, molten_kernels, buffers, initialized):
             running_buffers = map(lambda x: str(x.number), m_kernel.buffers)
             running = f"(running, bufnr: [{', '.join(running_buffers)}])"
             spec = m_kernel.runtime.kernel_manager.kernel_spec
+            language = ""
+            argv = ""
+            resource_dir = ""
+            if not spec:
+                language = "unknown"
+                argv = str(m_kernel.runtime.kernel_manager)
+                resource_dir = "unknown"
+            else:
+                language = spec.language
+                argv = spec.argv
+                resource_dir = spec.resource_dir
+                m_kernel.runtime.kernel_manager.interrupt_kernel()
+
             draw_kernel_info(
-                info_buf, running, m_kernel.kernel_id, spec.language, spec.argv, spec.resource_dir
+                info_buf, running, m_kernel.kernel_id, language, argv, resource_dir
             )
 
     if len(other_buf_kernels) > 0:

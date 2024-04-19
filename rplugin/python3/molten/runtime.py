@@ -47,6 +47,9 @@ class JupyterRuntime:
         self.nvim = nvim
         self.nvim.exec_lua("_prompt_stdin = require('prompt').prompt_stdin")
 
+        self.nvim.exec_lua('require "notify"("' + self.kernel_name + '", "info")')
+
+
         if ".json" not in self.kernel_name:
             self.external_kernel = False
             self.kernel_manager = jupyter_client.manager.KernelManager(kernel_name=kernel_name)
@@ -72,7 +75,7 @@ class JupyterRuntime:
 
             # we have a kernel json
             self.kernel_manager = jupyter_client.manager.KernelManager(
-                kernel_name=kernel_json["kernel_name"]
+                kernel_name="python3"
             )
             self.kernel_client = self.kernel_manager.client()
             self.kernel_client.load_connection_file(connection_file=kernel_file)
@@ -93,7 +96,12 @@ class JupyterRuntime:
             self.kernel_client.shutdown()
 
     def interrupt(self) -> None:
-        self.kernel_manager.interrupt_kernel()
+        if self.external_kernel:
+            msg = self.kernel_client.session.msg("interrupt_request", content={})
+            cc = self.kernel_client.control_channel
+            cc.send(msg)
+        else:
+            self.kernel_manager.interrupt_kernel()
 
     def restart(self) -> None:
         self.state = RuntimeState.STARTING
