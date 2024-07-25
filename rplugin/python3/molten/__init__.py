@@ -554,7 +554,7 @@ class Molten:
             (end_line - 1, end_col - 1),
         )
 
-        self.nvim.exec_lua('require "notify"("Started", "warn")')
+        self.nvim.exec_lua('require "notify"("Started", "warn", { title = "Started", render = "minimal" })')
         self._do_evaluate(kernel.strip(), span)
 
     @pynvim.command("MoltenEvaluateOperator", sync=True)  # type: ignore
