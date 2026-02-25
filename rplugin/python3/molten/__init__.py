@@ -11,6 +11,7 @@ from molten.info_window import create_info_window
 from molten.ipynb import export_outputs, get_default_import_export_file, import_outputs
 from molten.save_load import MoltenIOError, get_default_save_file, load, save
 from molten.moltenbuffer import MoltenKernel
+from molten.viewer import ViewerKernel
 from molten.options import MoltenOptions
 from molten.outputbuffer import OutputBuffer
 from molten.position import DynamicPosition, Position
@@ -220,6 +221,21 @@ class Molten:
             self.buffers[buffer.number].append(kernel)
 
         self.molten_kernels[kernel_id] = kernel
+
+    def _initialize_viewer_buffer(self, kernel_id: str) -> ViewerKernel:
+        assert self.canvas is not None
+        buf = self.nvim.current.buffer
+        molten = ViewerKernel(
+            self.nvim,
+            self.canvas,
+            self.highlight_namespace,
+            self.extmark_namespace,
+            buf,
+            self.options,
+            kernel_id,
+        )
+        self.add_kernel(buf, kernel_id, molten)
+        return molten
 
     @pynvim.command("MoltenInit", nargs="*", sync=True, complete="file")  # type: ignore
     @nvimui  # type: ignore
@@ -736,6 +752,60 @@ class Molten:
             if molten.kernel_id == kernel:
                 import_outputs(self.nvim, molten, path)
                 break
+
+    @pynvim.command("MoltenOpenNotebook", nargs="*", sync=True, complete="file")  # type: ignore
+    @nvimui  # type: ignore
+    def command_open_notebook(self, args: List[str]) -> None:
+        self._initialize_if_necessary()
+
+        buf = self.nvim.current.buffer
+        if len(args) > 0:
+            ipynb_path = args[0]
+        else:
+            ipynb_path = get_default_import_export_file(self.nvim, buf)
+
+        if not ipynb_path.endswith(".ipynb"):
+            ipynb_path += ".ipynb"
+
+        if not os.path.exists(ipynb_path):
+            notify_error(self.nvim, f"Notebook file not found: {ipynb_path}")
+            return
+
+        py_path = os.path.splitext(ipynb_path)[0] + ".py"
+        if not os.path.exists(py_path):
+            import nbformat
+            nb = nbformat.read(ipynb_path, as_version=4)
+            lines: List[str] = []
+            for cell in nb["cells"]:
+                if cell["cell_type"] == "code":
+                    # Don't add a marker if the source already starts with one
+                    # (jupytext percent-script notebooks embed # %% in the source)
+                    if not cell["source"].startswith("# %%"):
+                        lines.append("# %%")
+                    lines.append(cell["source"])
+                elif cell["cell_type"] == "markdown":
+                    lines.append("# %% [markdown]")
+                    for md_line in cell["source"].split("\n"):
+                        lines.append("# " + md_line)
+            with open(py_path, "w") as f:
+                f.write("\n".join(lines) + "\n")
+
+        self.nvim.command(f"edit {py_path}")
+
+        notebook_stem = os.path.splitext(os.path.basename(ipynb_path))[0]
+        kernel_id = f"viewer:{notebook_stem}"
+
+        # Idempotent: skip if already loaded for this buffer
+        for k in self.buffers.get(self.nvim.current.buffer.number, []):
+            if k.kernel_id == kernel_id:
+                notify_info(self.nvim, f"Notebook already loaded: {kernel_id}")
+                self._update_interface()
+                return
+
+        molten = self._initialize_viewer_buffer(kernel_id)
+        import_outputs(self.nvim, molten, ipynb_path)
+        molten._doautocmd("MoltenInitPost")
+        self._update_interface()
 
     @pynvim.command("MoltenExportOutput", nargs="*", sync=True, bang=True)  # type: ignore
     @nvimui  # type: ignore
