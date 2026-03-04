@@ -9,6 +9,7 @@ from molten.position import DynamicPosition
 
 from molten.utils import MoltenException, notify_error, notify_info, notify_warn
 
+
 NOTEBOOK_VERSION = 4
 
 
@@ -99,11 +100,12 @@ def import_outputs(nvim: Nvim, kernel: MoltenKernel, filepath: str):
             )
             output.status = OutputStatus.DONE
             kernel.outputs[span].output = output
-            kernel.update_interface()
         else:
             failed += 1
 
     loaded = len(molten_outputs) - failed
+    if loaded > 0:
+        kernel.update_interface()
 
     if len(molten_outputs) == 0:
         notify_warn(nvim, "No cell outputs to import")

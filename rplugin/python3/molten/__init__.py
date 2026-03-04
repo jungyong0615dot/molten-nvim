@@ -806,6 +806,14 @@ class Molten:
         import_outputs(self.nvim, molten, ipynb_path)
         molten._doautocmd("MoltenInitPost")
         self._update_interface()
+        # Defer a second pass so image.nvim has time to populate image dimensions
+        # (image_width/image_height on the image object) before we call render().
+        # Without this, render() receives {width:0, height:0} geometry because
+        # the initial canvas.present() fires synchronously before image.nvim
+        # finishes loading the image metadata.
+        self.nvim.exec_lua(
+            "vim.schedule(function() vim.fn.MoltenUpdateInterface() end)"
+        )
 
     @pynvim.command("MoltenExportOutput", nargs="*", sync=True, bang=True)  # type: ignore
     @nvimui  # type: ignore

@@ -7,6 +7,7 @@ from molten.options import MoltenOptions
 from molten.utils import notify_warn, MoltenException
 
 
+
 class Canvas(ABC):
     @abstractmethod
     def init(self) -> None:
@@ -88,6 +89,13 @@ class Canvas(ABC):
           The identifier for the image to remove.
         """
 
+    @abstractmethod
+    def requeue_image(self, identifier: str) -> None:
+        """
+        Re-queue an already-registered image so that canvas.present() will re-render it.
+        Used to re-display images on cells that have already been fully rendered (DONE status).
+        """
+
 
 class NoCanvas(Canvas):
     def __init__(self) -> None:
@@ -120,6 +128,9 @@ class NoCanvas(Canvas):
         pass
 
     def remove_image(self, _identifier: str) -> None:
+        pass
+
+    def requeue_image(self, _identifier: str) -> None:
         pass
 
 
@@ -199,6 +210,9 @@ class ImageNvimCanvas(Canvas):
     def remove_image(self, identifier: str) -> None:
         self.to_make_invisible.add(identifier)
 
+    def requeue_image(self, identifier: str) -> None:
+        self.to_make_visible.add(identifier)
+
 
 class WeztermCanvas(Canvas):
     """A canvas for using Wezterm's imgcat functionality to render images/plots"""
@@ -272,6 +286,9 @@ class WeztermCanvas(Canvas):
     def remove_image(self, identifier: str) -> None:
         pass
 
+    def requeue_image(self, identifier: str) -> None:
+        self.to_make_visible.add(identifier)
+
     def wezterm_split(self):
         """Splits the terminal based on config preferences at molten kernel init if
         supplied, otherwise resort to default values. Returns the pane id of the new
@@ -286,7 +303,6 @@ def get_canvas_given_provider(
     nvim: Nvim, options: MoltenOptions
 ) -> Canvas:
     name = options.image_provider
-
     if name == "none":
         return NoCanvas()
     elif name == "image.nvim":

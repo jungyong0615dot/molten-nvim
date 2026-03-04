@@ -11,6 +11,7 @@ from molten.position import DynamicPosition, Position
 from molten.utils import notify_error
 
 
+
 class OutputBuffer:
     nvim: Nvim
     canvas: Canvas
@@ -135,6 +136,7 @@ class OutputBuffer:
     def clear_virt_output(self, bufnr: int) -> None:
         if self.virt_text_id is not None:
             self.nvim.funcs.nvim_buf_del_extmark(bufnr, self.extmark_namespace, self.virt_text_id)
+            self.virt_text_id = None
         # clear the image too
         redraw = False
         for chunk in self.output.chunks:
@@ -197,6 +199,9 @@ class OutputBuffer:
 
     def show_virtual_output(self, anchor: Position) -> None:
         if self.displayed_status == OutputStatus.DONE and self.virt_text_id is not None:
+            for chunk in self.output.chunks:
+                if isinstance(chunk, ImageOutputChunk) and chunk.img_identifier is not None:
+                    self.canvas.requeue_image(chunk.img_identifier)
             return
         offset = self.calculate_offset(anchor) if self.options.cover_empty_lines else 0
         self.displayed_status = self.output.status
